@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buy Parking Ticket</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+</head>
+<body>
+  <h1>Buy Parking Ticket</h1>
+  <button id="connectButton">Connect MetaMask</button>
+  <div id="formContainer" style="display: none;">
+    <form id="parkingForm">
+      <label for="locationId">Location ID:</label>
+      <input type="number" id="locationId" required><br>
+      <label for="licensePlate">License Plate:</label>
+      <input type="text" id="licensePlate" required><br>
+      <label for="timeInMinutes">Time in Minutes:</label>
+      <input type="number" id="timeInMinutes" required><br>
+      <label for="amount">Amount (in WEI):</label> <!-- Updated label -->
+      <input type="number" id="amount" required><br> <!-- No step attribute needed for WEI -->
+      <button type="submit">Buy Ticket</button>
+    </form>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    let provider;
+    let signer;
+    const contractAddress = "0xe0Deb2019EA9b3DDaF15D85e0a6925DDa75Ad8a1"; 
+    const contractABI = [
+      "function park(uint256 locationId, string licensePlate, uint16 timeInMinutes) public payable",
+      "function getCostToPark(uint256 timeInMinutes, uint256 locationId) public view returns (uint256)"
+    ]; 
+
+    document.getElementById("connectButton").addEventListener("click", async () => {
+      if (typeof window.ethereum !== "undefined") {
+        try {
+          console.log("Requesting account access...");
+          await ethereum.request({ method: "eth_requestAccounts" });
+          provider = new ethers.providers.Web3Provider(window.ethereum);
+          signer = provider.getSigner();
+          const account = await signer.getAddress();
+          console.log("Connected to account:", account);
+          document.getElementById("connectButton").innerText = "Connected";
+          document.getElementById("formContainer").style.display = "block";
+        } catch (error) {
+          console.error("User denied account access or an error occurred:", error);
+          document.getElementById("status").innerText = "Failed to connect to MetaMask.";
+        }
+      } else {
+        console.error("MetaMask is not detected.");
+        document.getElementById("status").innerText = "MetaMask is not installed.";
+      }
+    });
+
+    document.getElementById("parkingForm").addEventListener("submit", async (event) => {
+      event.preventDefault(); // Prevent form from reloading the page
+      const locationId = document.getElementById("locationId").value;
+      const licensePlate = document.getElementById("licensePlate").value;
+      const timeInMinutes = document.getElementById("timeInMinutes").value;
+      const amountInWei = document.getElementById("amount").value;
+
+      try {
+        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        // Check the cost of parking
+        const cost = await contract.getCostToPark(timeInMinutes, locationId);
+        console.log("Calculated cost (in wei):", cost.toString());
+
+        if (ethers.BigNumber.from(amountInWei).lt(cost)) {
+          document.getElementById("status").innerText = "Insufficient WEI provided.";
+          return;
+        }
+
+        // Send the transaction to park
+        const tx = await contract.park(
+          locationId,
+          licensePlate,
+          timeInMinutes,
+          { value: ethers.BigNumber.from(amountInWei) }
+        );
+        document.getElementById("status").innerText = "Transaction sent: " + tx.hash;
+        await tx.wait();
+        document.getElementById("status").innerText = "Transaction confirmed: " + tx.hash;
+      } catch (error) {
+        console.error("Transaction failed:", error);
+        document.getElementById("status").innerText = "Transaction failed.";
+      }
+    });
+  </script>
+</body>
+</html>
