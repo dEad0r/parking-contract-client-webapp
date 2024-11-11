@@ -1,0 +1,4 @@
+export const config = {
+  contractAddress: "0xYourContractAddressHere", // Replace with your actual contract address
+  network: "sepolia", // Optional: specify network if needed
+};
